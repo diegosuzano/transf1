@@ -2,11 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import base64
+import requests
 
-# Caminho do arquivo Excel existente
+# Caminho do arquivo Excel local
 EXCEL_PATH = "Controle Transferencia.xlsx"
 SHEET_NAME = "Basae"
 
+# Configuração da página
 st.set_page_config(page_title="Registro Transferência", layout="centered")
 st.title("🚚 Registro de Transferência de Carga")
 
@@ -17,11 +20,11 @@ def registrar_tempo(label):
 
 # Inicializar variáveis de sessão
 campos_tempo = [
-    "Entrada na Fábrica", "Encostou na doca Fábrica", "Início carregamento", "Fim carregamento",
-    "Faturado", "Amarração carga", "Saída do pátio", "Entrada CD", "Encostou na doca CD",
-    "Início Descarregamento CD", "Fim Descarregamento CD", "Saída CD"
+    "Entrada na Fábrica", "Encostou na doca Fábrica", "Início carregamento",
+    "Fim carregamento", "Faturado", "Amarração carga", "Saída do pátio",
+    "Entrada CD", "Encostou na doca CD", "Início Descarregamento CD",
+    "Fim Descarregamento CD", "Saída CD"
 ]
-
 for campo in campos_tempo:
     if campo not in st.session_state:
         st.session_state[campo] = ""
@@ -32,7 +35,7 @@ data = st.date_input("Data", value=datetime.today())
 placa = st.text_input("Placa do caminhão")
 conferente = st.text_input("Nome do conferente")
 
-# Campos com botoes
+# Campos com botões
 st.subheader("Fábrica")
 for campo in campos_tempo[:7]:
     registrar_tempo(campo)
@@ -43,7 +46,7 @@ for campo in campos_tempo[7:]:
     registrar_tempo(campo)
     st.text_input(campo, value=st.session_state[campo], disabled=True)
 
-# Calcular tempos automáticos
+# Função para calcular tempos
 def calc_tempo(fim, inicio):
     try:
         t1 = datetime.strptime(st.session_state[fim], "%Y-%m-%d %H:%M:%S")
@@ -52,7 +55,7 @@ def calc_tempo(fim, inicio):
     except:
         return ""
 
-# Campos calculados
+# Tempos calculados
 tempo_carreg = calc_tempo("Fim carregamento", "Início carregamento")
 tempo_espera = calc_tempo("Encostou na doca Fábrica", "Entrada na Fábrica")
 tempo_total = calc_tempo("Saída do pátio", "Entrada na Fábrica")
@@ -91,3 +94,42 @@ if st.button("✅ Salvar Registro"):
     # Resetar campos
     for campo in campos_tempo:
         st.session_state[campo] = ""
+
+    # Enviar para GitHub
+    def enviar_para_github(caminho_arquivo, repo, caminho_repo, token):
+        with open(caminho_arquivo, "rb") as f:
+            conteudo = f.read()
+        conteudo_b64 = base64.b64encode(conteudo).decode("utf-8")
+
+        url = f"https://api.github.com/repos/{repo}/contents/{caminho_repo}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        # Verificar se o arquivo já existe
+        response = requests.get(url, headers=headers)
+        sha = response.json()["sha"] if response.status_code == 200 else None
+
+        payload = {
+            "message": "Atualização automática da planilha",
+            "content": conteudo_b64,
+            "branch": "main"
+        }
+        if sha:
+            payload["sha"] = sha
+
+        r = requests.put(url, headers=headers, json=payload)
+        return r.status_code in [200, 201]
+
+    # Parâmetros do GitHub
+    repo = "diegosuzano/transf1"
+    caminho_repo = "Controle Transferencia.xlsx"
+    token = st.secrets["github_token"]
+
+    if enviar_para_github(EXCEL_PATH, repo, caminho_repo, token):
+        st.success("📤 Planilha enviada para o GitHub com sucesso!")
+        link_download = f"https://github.com/{repo}/raw/main/{caminho_repo}"
+        st.markdown(f"📥 Baixar planilha atualizada", unsafe_allow_html=True)
+    else:
+        st.error("❌ Falha ao enviar a planilha para o GitHub.")
