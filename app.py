@@ -65,26 +65,23 @@ elif st.session_state.pagina == "lancar":
             "Fim carregamento", "Faturado", "Amarração carga", "Saída CD"
         ]
 
+        valores = {}
+
         for campo in campos:
-            key_input = f"{campo}_input"
-            key_btn = f"{campo}_btn"
-
-            if key_input not in st.session_state:
-                st.session_state[key_input] = ""
-
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.session_state[key_input] = st.text_input(f"{campo}", value=st.session_state[key_input], key=key_input)
+                valores[campo] = st.text_input(f"{campo}", key=f"{campo}_input")
             with col2:
-                if st.form_submit_button(f"Registrar agora - {campo}", key=key_btn):
-                    st.session_state[key_input] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+                if st.form_submit_button(f"Registrar agora - {campo}"):
+                    valores[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+                    st.experimental_rerun()
 
         if st.form_submit_button("Salvar Lançamento"):
             novo = pd.DataFrame([{
                 "Data": data.strftime("%Y-%m-%d"),
                 "Placa do caminhão": placa,
                 "Nome do conferente": conferente,
-                **{campo: st.session_state[f"{campo}_input"] for campo in campos}
+                **valores
             }])
 
             df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
@@ -95,9 +92,6 @@ elif st.session_state.pagina == "lancar":
 
             st.success("✅ Lançamento salvo com sucesso!")
             st.session_state.pagina = "inicial"
-
-            for campo in campos:
-                st.session_state[f"{campo}_input"] = ""
 
 # TELA DE EDIÇÃO
 elif st.session_state.pagina == "editar":
