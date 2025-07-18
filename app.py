@@ -22,7 +22,7 @@ campos_calculados = [
 ]
 
 # Inicializa session_state para os campos de tempo e calculados
-for campo in campos_tempo + campos_calculados:
+for campo in campos_tempo:
     if campo not in st.session_state:
         st.session_state[campo] = ""
 
@@ -139,7 +139,6 @@ elif pagina == "Lançar Novo Controle":
                 # Criar um DataFrame com todas as colunas esperadas, incluindo as calculadas
                 colunas_iniciais = ["Data", "Placa do caminhão", "Nome do conferente"] + campos_tempo + campos_calculados
                 df_novo = pd.DataFrame([nova_linha], columns=colunas_iniciais)
-
             with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
                 df_novo.to_excel(writer, sheet_name=SHEET_NAME, index=False)
 
@@ -275,9 +274,9 @@ elif pagina == "Em Operação":
                         tempo_espera_doca_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Encostou na doca CD"))
                         tempo_total_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Saída CD"))
                         tempo_percurso_para_cd = calcular_tempo(registro.get("Saída do pátio"), registro.get("Entrada CD"))
+                        tempo_carregamento = calcular_tempo(registro.get("Início carregamento"), registro.get("Fim carregamento"))
                         
-                        if tempo_espera_doca:
-                            st.metric("⏱️ Tempo Espera Doca", tempo_espera_doca)
+                        if tempo_espera_doca:                            st.metric("⏱️ Tempo Espera Doca", tempo_espera_doca)
                         if tempo_total:
                             st.metric("⏰ Tempo Total Fábrica", tempo_total)
                         if tempo_percurso_para_cd:
@@ -320,6 +319,7 @@ elif pagina == "Em Operação":
                 tempo_espera_doca_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Encostou na doca CD"))
                 tempo_total_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Saída CD"))
                 tempo_percurso_para_cd = calcular_tempo(registro.get("Saída do pátio"), registro.get("Entrada CD"))
+                tempo_carregamento = calcular_tempo(registro.get("Início carregamento"), registro.get("Fim carregamento"))
                 
                 dados_operacao.append({
                     'Placa': registro.get('Placa do caminhão', ''),
@@ -463,5 +463,4 @@ elif pagina == "Finalizadas":
             st.info("📋 Nenhum registro finalizado no momento.")
     else:
         st.error("❌ Planilha não encontrada.")
-
 
