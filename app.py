@@ -5,20 +5,16 @@ import os
 import base64
 import requests
 
-# Caminho do arquivo Excel local
 EXCEL_PATH = "Controle Transferencia.xlsx"
 SHEET_NAME = "Basae"
 
-# Configuração da página
 st.set_page_config(page_title="Registro Transferência", layout="centered")
 st.title("🚚 Registro de Transferência de Carga")
 
-# Função para registrar timestamp atual
 def registrar_tempo(label):
     if st.button(f"Registrar {label}"):
         st.session_state[label] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Inicializar variáveis de sessão
 campos_tempo = [
     "Entrada na Fábrica", "Encostou na doca Fábrica", "Início carregamento",
     "Fim carregamento", "Faturado", "Amarração carga", "Saída do pátio",
@@ -29,13 +25,11 @@ for campo in campos_tempo:
     if campo not in st.session_state:
         st.session_state[campo] = ""
 
-# Campos manuais
 st.subheader("Dados do Veículo")
 data = st.date_input("Data", value=datetime.today())
 placa = st.text_input("Placa do caminhão")
 conferente = st.text_input("Nome do conferente")
 
-# Campos com botões
 st.subheader("Fábrica")
 for campo in campos_tempo[:7]:
     registrar_tempo(campo)
@@ -46,7 +40,6 @@ for campo in campos_tempo[7:]:
     registrar_tempo(campo)
     st.text_input(campo, value=st.session_state[campo], disabled=True)
 
-# Função para calcular tempos
 def calc_tempo(fim, inicio):
     try:
         t1 = datetime.strptime(st.session_state[fim], "%Y-%m-%d %H:%M:%S")
@@ -55,7 +48,6 @@ def calc_tempo(fim, inicio):
     except:
         return ""
 
-# Tempos calculados
 tempo_carreg = calc_tempo("Fim carregamento", "Início carregamento")
 tempo_espera = calc_tempo("Encostou na doca Fábrica", "Entrada na Fábrica")
 tempo_total = calc_tempo("Saída do pátio", "Entrada na Fábrica")
@@ -64,7 +56,6 @@ tempo_espera_cd = calc_tempo("Encostou na doca CD", "Entrada CD")
 tempo_total_cd = calc_tempo("Saída CD", "Entrada CD")
 tempo_percurso = calc_tempo("Entrada CD", "Saída do pátio")
 
-# Função para enviar para o GitHub com log de erro
 def enviar_para_github(caminho_arquivo, repo, caminho_repo, token):
     try:
         with open(caminho_arquivo, "rb") as f:
@@ -77,7 +68,6 @@ def enviar_para_github(caminho_arquivo, repo, caminho_repo, token):
             "Accept": "application/vnd.github+json"
         }
 
-        # Verificar se o arquivo já existe
         response = requests.get(url, headers=headers)
         sha = response.json()["sha"] if response.status_code == 200 else None
 
@@ -104,7 +94,6 @@ def enviar_para_github(caminho_arquivo, repo, caminho_repo, token):
         st.text(str(e))
         return False
 
-# Botão para salvar
 if st.button("✅ Salvar Registro"):
     nova_linha = {
         "Data": data,
@@ -120,32 +109,35 @@ if st.button("✅ Salvar Registro"):
         "Tempo Percurso Para CD": tempo_percurso,
     }
 
-    if os.path.exists(EXCEL_PATH):
-        df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME)
-        df_novo = pd.concat([df_existente, pd.DataFrame([nova_linha])], ignore_index=True)
-    else:
-        df_novo = pd.DataFrame([nova_linha])
+    try:
+        if os.path.exists(EXCEL_PATH):
+            df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
+            df_novo = pd.concat([df_existente, pd.DataFrame([nova_linha])], ignore_index=True)
+        else:
+            df_novo = pd.DataFrame([nova_linha])
 
-    with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
-        df_novo.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+        with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
+            df_novo.to_excel(writer, sheet_name=SHEET_NAME, index=False)
 
-    st.success("Registro salvo com sucesso!")
+        st.success("✅ Registro salvo com sucesso!")
 
-    # Resetar campos
-    for campo in campos_tempo:
-        st.session_state[campo] = ""
+        for campo in campos_tempo:
+            st.session_state[campo] = ""
 
-    # Enviar para o GitHub
-    repo = "diegosuzano/transf1"
-    caminho_repo = "Controle Transferencia.xlsx"
-    token = st.secrets["github_token"]
+        repo = "diegosuzano/transf1"
+        caminho_repo = "Controle Transferencia.xlsx"
+        token = st.secrets["github_token"]
 
-    if enviar_para_github(EXCEL_PATH, repo, caminho_repo, token):
-        st.success("📤 Planilha enviada para o GitHub com sucesso!")
-        link_download = f"https://github.com/{repo}/raw/main/{caminho_repo}"
-        st.markdown(
-            f'<a href="{link_download}" target="_blank" download style="font-size:18px;">📥 Baixar planilha atualizada</a>',
-            unsafe_allow_html=True
-        )
-    else:
-        st.error("❌ Falha ao enviar a planilha para o GitHub.")
+        if enviar_para_github(EXCEL_PATH, repo, caminho_repo, token):
+            st.success("📤 Planilha enviada para o GitHub com sucesso!")
+            link_download = f"https://github.com/{repo}/raw/main/{caminho_repo}"
+            st.markdown(
+                f'<a href="{link_download}" target="_blank" download style="font-size:18px;">📥 Baixar planilha atualizada</a>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.error("❌ Falha ao enviar a planilha para o GitHub.")
+
+    except Exception as e:
+        st.error("❌ Erro ao salvar a planilha localmente.")
+        st.text(str(e))
