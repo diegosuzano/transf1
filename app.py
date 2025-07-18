@@ -138,7 +138,9 @@ elif pagina == "Lançar Novo Controle":
             else:
                 # Criar um DataFrame com todas as colunas esperadas, incluindo as calculadas
                 colunas_iniciais = ["Data", "Placa do caminhão", "Nome do conferente"] + campos_tempo + campos_calculados
-                df_novo = pd.DataFrame([nova_linha], columns=colunas_iniciais)            with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
+                df_novo = pd.DataFrame([nova_linha], columns=colunas_iniciais)
+
+            with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
                 df_novo.to_excel(writer, sheet_name=SHEET_NAME, index=False)
 
             st.success("✅ Registro salvo com sucesso!")
@@ -461,3 +463,5 @@ elif pagina == "Finalizadas":
             st.info("📋 Nenhum registro finalizado no momento.")
     else:
         st.error("❌ Planilha não encontrada.")
+
+
