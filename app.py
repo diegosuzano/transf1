@@ -27,7 +27,7 @@ for campo in campos_tempo + campos_calculados:
         st.session_state[campo] = ""
 
 st.set_page_config(page_title="Registro Transferência", layout="centered")
-st.title("🚚 Registro de Transferência de Carga")
+st.title("🚚 Registro de Transferência de Carga - Suzano Papel e Celulose")
 
 pagina = st.selectbox("📌 Escolha uma opção", ["Tela Inicial", "Lançar Novo Controle", "Editar Lançamentos Incompletos", "Em Operação"])
 
@@ -54,11 +54,6 @@ def obter_status(registro):
 
 
 if pagina == "Tela Inicial":
-    # Exibir logo Suzano
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("suzano_logo.png", width=300)
-    
     st.subheader("Bem-vindo ao Sistema de Controle de Transferência")
     st.write("Use o menu acima para navegar entre as opções disponíveis:")
     st.write("- **Lançar Novo Controle**: Para registrar um novo controle de transferência")
