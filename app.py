@@ -1,126 +1,140 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 
-ARQUIVO = "Controle Transferencia.xlsx"
-CAMPOS = [
-    "Data",
-    "Placa",
-    "Entrada no pátio",
-    "Encostou na doca",
-    "Início carregamento",
-    "Fim carregamento",
-    "Faturado",
-    "Amarração carga",
-    "Saída CD"
+# Configurações
+EXCEL_PATH = "Controle Transferencia.xlsx"
+SHEET_NAME = "Basae"
+FUSO_HORARIO = timezone(timedelta(hours=-3))  # UTC-3
+
+campos_tempo = [
+    "Entrada na Fábrica", "Encostou na doca Fábrica", "Início carregamento",
+    "Fim carregamento", "Faturado", "Amarração carga", "Saída do pátio",
+    "Entrada CD", "Encostou na doca CD", "Início Descarregamento CD",
+    "Fim Descarregamento CD", "Saída CD"
 ]
 
-def carregar_dados():
-    if os.path.exists(ARQUIVO):
-        return pd.read_excel(ARQUIVO)
-    else:
-        return pd.DataFrame(columns=CAMPOS)
+# Inicializa session_state para os campos de tempo
+for campo in campos_tempo:
+    if campo not in st.session_state:
+        st.session_state[campo] = ""
 
-def salvar_dados(df):
-    df.to_excel(ARQUIVO, index=False)
+st.set_page_config(page_title="Registro Transferência", layout="centered")
+st.title("🚚 Registro de Transferência de Carga")
 
-def registrar_lancamento():
-    st.subheader("Lançar Novo Controle")
-    with st.form("form_lancamento"):
-        placa = st.text_input("Placa")
-        campo = st.selectbox("Qual etapa deseja registrar agora?", CAMPOS[2:])
-        submitted = st.form_submit_button("Registrar agora")
+pagina = st.selectbox("📌 Escolha uma opção", ["Tela Inicial", "Lançar Novo Controle", "Editar Lançamentos Incompletos"])
 
-        if submitted and placa and campo:
-            df = carregar_dados()
-            novo = {campo_: "" for campo_ in CAMPOS}
-            novo["Data"] = datetime.now().strftime("%d/%m/%Y")
-            novo["Placa"] = placa.upper()
-            novo[campo] = datetime.now().strftime("%d/%m/%Y %H:%M")
-            df = pd.concat([df, pd.DataFrame([novo])], ignore_index=True)
-            salvar_dados(df)
-            st.success(f"Registrado: {campo}")
+if pagina == "Tela Inicial":
+    st.subheader("O que deseja fazer?")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("📥 Baixar Arquivo"):
+            if os.path.exists(EXCEL_PATH):
+                with open(EXCEL_PATH, "rb") as f:
+                    st.download_button(
+                        label="Clique aqui para baixar a planilha",
+                        data=f,
+                        file_name=EXCEL_PATH,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            else:
+                st.error("Arquivo local não encontrado.")
+
+    with col2:
+        if st.button("📝 Lançar Novo Controle"):
+            st.session_state.pagina = "lancar"
             st.experimental_rerun()
 
-def editar_lancamentos():
-    st.subheader("Editar Lançamentos Incompletos")
-    df = carregar_dados()
-    df_incompleto = df[df["Saída CD"].isna() | (df["Saída CD"] == "")]
+    with col3:
+        if st.button("✏️ Editar Lançamentos Incompletos"):
+            st.session_state.pagina = "editar"
+            st.experimental_rerun()
 
-    if df_incompleto.empty:
-        st.info("Nenhum registro incompleto encontrado.")
-        return
+elif pagina == "Lançar Novo Controle":
+    st.subheader("Dados do Veículo")
+    data = st.date_input("Data", value=datetime.now(FUSO_HORARIO).date())
+    placa = st.text_input("Placa do caminhão")
+    conferente = st.text_input("Nome do conferente")
 
-    placas = df_incompleto["Placa"].unique()
-    placa_sel = st.selectbox("Selecione a Placa", placas)
-    registros = df_incompleto[df_incompleto["Placa"] == placa_sel].copy()
+    st.subheader("Fábrica")
+    for campo in campos_tempo[:7]:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
+        with col2:
+            if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
+                st.session_state[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+                # NÃO CHAMAR st.experimental_rerun() aqui!
 
-    for idx, row in registros.iterrows():
-        st.markdown(f"### Registro linha {idx + 2}")
-        for campo in CAMPOS[2:]:
-            valor_atual = row[campo]
-            if pd.isna(valor_atual) or valor_atual == "":
-                if st.button(f"Registrar agora - {campo} (linha {idx})"):
-                    df.at[idx, campo] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    salvar_dados(df)
-                    st.success(f"Campo {campo} atualizado para a placa {placa_sel}")
-                    st.experimental_rerun()
+    st.subheader("Centro de Distribuição (CD)")
+    for campo in campos_tempo[7:]:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
+        with col2:
+            if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
+                st.session_state[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+                # NÃO CHAMAR st.experimental_rerun() aqui!
 
-def em_operacao():
-    st.subheader("Em Operação")
-    df = carregar_dados()
-    em_proc = df[df["Saída CD"].isna() | (df["Saída CD"] == "")].copy()
+    if st.button("✅ Salvar Registro"):
+        nova_linha = {
+            "Data": data.strftime("%Y-%m-%d"),
+            "Placa do caminhão": placa,
+            "Nome do conferente": conferente,
+            **{campo: st.session_state[campo] for campo in campos_tempo},
+        }
+        try:
+            if os.path.exists(EXCEL_PATH):
+                df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
+                df_novo = pd.concat([df_existente, pd.DataFrame([nova_linha])], ignore_index=True)
+            else:
+                df_novo = pd.DataFrame([nova_linha])
 
-    if em_proc.empty:
-        st.info("Nenhum veículo em operação.")
-        return
+            with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
+                df_novo.to_excel(writer, sheet_name=SHEET_NAME, index=False)
 
-    def ultimo_campo_preenchido(row):
-        for campo in reversed(CAMPOS[2:]):
-            if pd.notna(row[campo]) and row[campo] != "":
-                return campo
-        return "Início"
+            st.success("✅ Registro salvo com sucesso!")
 
-    def calcular_tempo(inicio, fim):
-        if pd.notna(inicio) and pd.notna(fim):
-            try:
-                t1 = pd.to_datetime(inicio, dayfirst=True)
-                t2 = pd.to_datetime(fim, dayfirst=True)
-                return str(t2 - t1)
-            except:
-                return "-"
-        return "-"
+            # Limpa campos depois de salvar
+            for campo in campos_tempo:
+                st.session_state[campo] = ""
 
-    agora = datetime.now()
-    em_proc["Status"] = em_proc.apply(ultimo_campo_preenchido, axis=1)
-    em_proc["Tempo Carregamento"] = em_proc.apply(lambda r: calcular_tempo(r["Início carregamento"], r["Fim carregamento"]), axis=1)
-    em_proc["Tempo Total"] = em_proc.apply(lambda r: calcular_tempo(r["Entrada no pátio"], agora), axis=1)
-    em_proc["Tempo Percurso para CD"] = em_proc.apply(lambda r: calcular_tempo(r["Fim carregamento"], r["Faturado"]), axis=1)
-    em_proc["Tempo Descarregamento CD"] = em_proc.apply(lambda r: calcular_tempo(r["Amarração carga"], r["Saída CD"]), axis=1)
-    em_proc["Tempo Total CD"] = em_proc.apply(lambda r: calcular_tempo(r["Faturado"], r["Saída CD"]), axis=1)
+        except Exception as e:
+            st.error("Erro ao salvar planilha localmente:")
+            st.text(str(e))
 
-    st.dataframe(em_proc[[
-        "Placa", "Status",
-        "Tempo Carregamento",
-        "Tempo Total",
-        "Tempo Percurso para CD",
-        "Tempo Descarregamento CD",
-        "Tempo Total CD"
-    ]])
+elif pagina == "Editar Lançamentos Incompletos":
+    st.subheader("✏️ Edição de Registros Incompletos")
 
-# Interface principal
-st.title("Controle de Transferências")
+    if os.path.exists(EXCEL_PATH):
+        df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
+        incompletos = df[df.isnull().any(axis=1) | (df == "").any(axis=1)]
 
-opcao = st.selectbox("Escolha a opção:", [
-    "Lançar Novo Controle",
-    "Editar Lançamentos Incompletos",
-    "Em Operação"
-])
+        if not incompletos.empty:
+            idx = st.selectbox("Selecione um registro para editar:", incompletos.index)
+            registro = incompletos.loc[idx]
+            campos_editaveis = {}
 
-if opcao == "Lançar Novo Controle":
-    registrar_lancamento()
-elif opcao == "Editar Lançamentos Incompletos":
-    editar_lancamentos()
-elif opcao == "Em Operação":
-    em_operacao()
+            for coluna in df.columns:
+                valor = registro[coluna]
+                if pd.isna(valor) or valor == "":
+                    novo_valor = st.text_input(f"{coluna}", value="")
+                    campos_editaveis[coluna] = novo_valor
+                else:
+                    st.text_input(f"{coluna}", value=str(valor), disabled=True)
+
+            if st.button("💾 Salvar preenchimento"):
+                for coluna, novo_valor in campos_editaveis.items():
+                    if novo_valor.strip() != "":
+                        df.at[idx, coluna] = novo_valor
+
+                with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
+                    df.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+
+                st.success("✅ Registro atualizado com sucesso!")
+        else:
+            st.info("✅ Todos os registros estão completos!")
+    else:
+        st.error("❌ Planilha não encontrada.")
