@@ -120,7 +120,8 @@ elif pagina == "Lançar Novo Controle":
             "Tempo Percurso Para CD": tempo_percurso_para_cd,
             "Tempo de Carregamento": tempo_carregamento
         }
-        try:            if os.path.exists(EXCEL_PATH):
+        try:
+            if os.path.exists(EXCEL_PATH):
                 df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
                 # Definir a ordem esperada das colunas
                 colunas_esperadas = ["Data", "Placa do caminhão", "Nome do conferente"] + campos_tempo + campos_calculados
