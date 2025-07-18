@@ -92,6 +92,7 @@ elif pagina == "Lançar Novo Controle":
             # Limpa campos depois de salvar
             for campo in campos_tempo:
                 st.session_state[campo] = ""
+            # Removido st.experimental_rerun() daqui
 
         except Exception as e:
             st.error("Erro ao salvar planilha localmente:")
@@ -102,8 +103,8 @@ elif pagina == "Editar Lançamentos Incompletos":
 
     if os.path.exists(EXCEL_PATH):
         df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
-        # Filtrar apenas registros onde 'Saída CD' está vazia
-        incompletos = df[(pd.isna(df['Saída CD'])) | (df['Saída CD'] == "")]
+        # Filtrar apenas registros onde \'Saída CD\' está vazia
+        incompletos = df[(pd.isna(df["Saída CD"])) | (df["Saída CD"] == "")]
 
         if not incompletos.empty:
             # Criar opções do selectbox mostrando a placa
@@ -134,7 +135,7 @@ elif pagina == "Editar Lançamentos Incompletos":
                         st.text_input(f"{coluna}", value=st.session_state[f"edit_{coluna}"], key=f"edit_{coluna}")
                     with col2:
                         if coluna in campos_tempo:
-                            # Callback para o botão 'Agora'
+                            # Callback para o botão \'Agora\'
                             def update_time(col):
                                 st.session_state[f"edit_{col}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
                             st.button(f"⏰ Agora", key=f"btn_now_{coluna}", on_click=update_time, args=(coluna,))
@@ -167,8 +168,8 @@ elif pagina == "Em Operação":
     
     if os.path.exists(EXCEL_PATH):
         df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
-        # Filtrar registros onde 'Saída CD' está vazia (em operação)
-        em_operacao = df[(pd.isna(df['Saída CD'])) | (df['Saída CD'] == "")]
+        # Filtrar registros onde \'Saída CD\' está vazia (em operação)
+        em_operacao = df[(pd.isna(df["Saída CD"])) | (df["Saída CD"] == "")]
         
         if not em_operacao.empty:
             # Função para calcular diferença de tempo
