@@ -107,7 +107,6 @@ elif pagina == "Lançar Novo Controle":
         tempo_total_cd = calcular_tempo(st.session_state.get("Entrada CD"), st.session_state.get("Saída CD"))
         tempo_percurso_para_cd = calcular_tempo(st.session_state.get("Saída do pátio"), st.session_state.get("Entrada CD"))
         tempo_carregamento = calcular_tempo(st.session_state.get("Início carregamento"), st.session_state.get("Fim carregamento"))
-
         nova_linha = {
             "Data": data.strftime("%Y-%m-%d"),
             "Placa do caminhão": placa,
@@ -121,20 +120,24 @@ elif pagina == "Lançar Novo Controle":
             "Tempo Percurso Para CD": tempo_percurso_para_cd,
             "Tempo de Carregamento": tempo_carregamento
         }
-        try:
-            if os.path.exists(EXCEL_PATH):
+        try:            if os.path.exists(EXCEL_PATH):
                 df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
-                # Garantir que todas as colunas calculadas existam no df_existente
-                for col in campos_calculados:
+                # Definir a ordem esperada das colunas
+                colunas_esperadas = ["Data", "Placa do caminhão", "Nome do conferente"] + campos_tempo + campos_calculados
+                
+                # Adicionar colunas ausentes ao df_existente com valores vazios
+                for col in colunas_esperadas:
                     if col not in df_existente.columns:
                         df_existente[col] = ""
+                
+                # Reordenar as colunas do df_existente
+                df_existente = df_existente[colunas_esperadas]
+                
                 df_novo = pd.concat([df_existente, pd.DataFrame([nova_linha])], ignore_index=True)
             else:
                 # Criar um DataFrame com todas as colunas esperadas, incluindo as calculadas
                 colunas_iniciais = ["Data", "Placa do caminhão", "Nome do conferente"] + campos_tempo + campos_calculados
-                df_novo = pd.DataFrame([nova_linha], columns=colunas_iniciais)
-
-            with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
+                df_novo = pd.DataFrame([nova_linha], columns=colunas_iniciais)            with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
                 df_novo.to_excel(writer, sheet_name=SHEET_NAME, index=False)
 
             st.success("✅ Registro salvo com sucesso!")
