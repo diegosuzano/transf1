@@ -64,6 +64,46 @@ tempo_espera_cd = calc_tempo("Encostou na doca CD", "Entrada CD")
 tempo_total_cd = calc_tempo("Saída CD", "Entrada CD")
 tempo_percurso = calc_tempo("Entrada CD", "Saída do pátio")
 
+# Função para enviar para o GitHub com log de erro
+def enviar_para_github(caminho_arquivo, repo, caminho_repo, token):
+    try:
+        with open(caminho_arquivo, "rb") as f:
+            conteudo = f.read()
+        conteudo_b64 = base64.b64encode(conteudo).decode("utf-8")
+
+        url = f"https://api.github.com/repos/{repo}/contents/{caminho_repo}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        # Verificar se o arquivo já existe
+        response = requests.get(url, headers=headers)
+        sha = response.json()["sha"] if response.status_code == 200 else None
+
+        payload = {
+            "message": "Atualização automática da planilha",
+            "content": conteudo_b64,
+            "branch": "main"
+        }
+        if sha:
+            payload["sha"] = sha
+
+        r = requests.put(url, headers=headers, json=payload)
+
+        if r.status_code not in [200, 201]:
+            st.error(f"Erro ao enviar: {r.status_code}")
+            try:
+                st.json(r.json())
+            except Exception as e:
+                st.text(f"Erro ao interpretar resposta: {e}")
+        return r.status_code in [200, 201]
+
+    except Exception as e:
+        st.error("Erro inesperado ao tentar enviar para o GitHub.")
+        st.text(str(e))
+        return False
+
 # Botão para salvar
 if st.button("✅ Salvar Registro"):
     nova_linha = {
@@ -95,34 +135,7 @@ if st.button("✅ Salvar Registro"):
     for campo in campos_tempo:
         st.session_state[campo] = ""
 
-    # Enviar para GitHub
-    def enviar_para_github(caminho_arquivo, repo, caminho_repo, token):
-        with open(caminho_arquivo, "rb") as f:
-            conteudo = f.read()
-        conteudo_b64 = base64.b64encode(conteudo).decode("utf-8")
-
-        url = f"https://api.github.com/repos/{repo}/contents/{caminho_repo}"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json"
-        }
-
-        # Verificar se o arquivo já existe
-        response = requests.get(url, headers=headers)
-        sha = response.json()["sha"] if response.status_code == 200 else None
-
-        payload = {
-            "message": "Atualização automática da planilha",
-            "content": conteudo_b64,
-            "branch": "main"
-        }
-        if sha:
-            payload["sha"] = sha
-
-        r = requests.put(url, headers=headers, json=payload)
-        return r.status_code in [200, 201]
-
-    # Parâmetros do GitHub
+    # Enviar para o GitHub
     repo = "diegosuzano/transf1"
     caminho_repo = "Controle Transferencia.xlsx"
     token = st.secrets["github_token"]
@@ -133,3 +146,4 @@ if st.button("✅ Salvar Registro"):
         st.markdown(f"📥 Baixar planilha atualizada", unsafe_allow_html=True)
     else:
         st.error("❌ Falha ao enviar a planilha para o GitHub.")
+
