@@ -92,7 +92,7 @@ elif pagina == "Lançar Novo Controle":
             # Limpa campos depois de salvar
             for campo in campos_tempo:
                 st.session_state[campo] = ""
-            # Removido st.experimental_rerun() daqui
+
 
         except Exception as e:
             st.error("Erro ao salvar planilha localmente:")
@@ -157,7 +157,8 @@ elif pagina == "Editar Lançamentos Incompletos":
                 for coluna in df.columns:
                     if f"edit_{coluna}" in st.session_state:
                         del st.session_state[f"edit_{coluna}"]
-                st.experimental_rerun()
+
+
         else:
             st.info("✅ Todos os registros estão completos!")
     else:
