@@ -15,7 +15,7 @@ campos_tempo = [
     "Fim Descarregamento CD", "Saída CD"
 ]
 
-# Inicializa session_state
+# Inicializa session_state para os campos de tempo
 for campo in campos_tempo:
     if campo not in st.session_state:
         st.session_state[campo] = ""
@@ -60,23 +60,23 @@ elif pagina == "Lançar Novo Controle":
 
     st.subheader("Fábrica")
     for campo in campos_tempo[:7]:
-        col1, col2 = st.columns([3,1])
+        col1, col2 = st.columns([3, 1])
         with col1:
             st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
         with col2:
             if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
                 st.session_state[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-                st.experimental_rerun()  # <-- Manter, mas só para um botão por vez!
+                # NÃO CHAMAR st.experimental_rerun() aqui!
 
     st.subheader("Centro de Distribuição (CD)")
     for campo in campos_tempo[7:]:
-        col1, col2 = st.columns([3,1])
+        col1, col2 = st.columns([3, 1])
         with col1:
             st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
         with col2:
             if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
                 st.session_state[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-                st.experimental_rerun()
+                # NÃO CHAMAR st.experimental_rerun() aqui!
 
     if st.button("✅ Salvar Registro"):
         nova_linha = {
@@ -97,7 +97,7 @@ elif pagina == "Lançar Novo Controle":
 
             st.success("✅ Registro salvo com sucesso!")
 
-            # Limpa os campos
+            # Limpa campos depois de salvar
             for campo in campos_tempo:
                 st.session_state[campo] = ""
 
