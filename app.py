@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timezone, timedelta
 import os
 
-# CONFIG
+# Configurações
 EXCEL_PATH = "Controle Transferencia.xlsx"
 SHEET_NAME = "Basae"
 FUSO_HORARIO = timezone(timedelta(hours=-3))  # UTC-3
@@ -15,7 +15,7 @@ campos_tempo = [
     "Fim Descarregamento CD", "Saída CD"
 ]
 
-# Inicializa session_state para cada campo se não existir
+# Inicializa session_state
 for campo in campos_tempo:
     if campo not in st.session_state:
         st.session_state[campo] = ""
@@ -58,9 +58,6 @@ elif pagina == "Lançar Novo Controle":
     placa = st.text_input("Placa do caminhão")
     conferente = st.text_input("Nome do conferente")
 
-    # Variável para armazenar qual botão foi clicado
-    botao_clicado = None
-
     st.subheader("Fábrica")
     for campo in campos_tempo[:7]:
         col1, col2 = st.columns([3,1])
@@ -68,7 +65,8 @@ elif pagina == "Lançar Novo Controle":
             st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
         with col2:
             if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
-                botao_clicado = campo
+                st.session_state[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+                st.experimental_rerun()  # <-- Manter, mas só para um botão por vez!
 
     st.subheader("Centro de Distribuição (CD)")
     for campo in campos_tempo[7:]:
@@ -77,12 +75,8 @@ elif pagina == "Lançar Novo Controle":
             st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
         with col2:
             if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
-                botao_clicado = campo
-
-    # Se algum botão foi clicado, atualiza o valor e rerun uma única vez
-    if botao_clicado is not None:
-        st.session_state[botao_clicado] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-        st.experimental_rerun()
+                st.session_state[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+                st.experimental_rerun()
 
     if st.button("✅ Salvar Registro"):
         nova_linha = {
@@ -103,6 +97,7 @@ elif pagina == "Lançar Novo Controle":
 
             st.success("✅ Registro salvo com sucesso!")
 
+            # Limpa os campos
             for campo in campos_tempo:
                 st.session_state[campo] = ""
 
