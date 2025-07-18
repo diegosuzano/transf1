@@ -143,12 +143,9 @@ if st.button("✅ Salvar Registro"):
     if enviar_para_github(EXCEL_PATH, repo, caminho_repo, token):
         st.success("📤 Planilha enviada para o GitHub com sucesso!")
         link_download = f"https://github.com/{repo}/raw/main/{caminho_repo}"
-        
-st.markdown(
-    f'<a href="{link_download}" target="_blank" download style="font-size:18px;">📥 Baixar planilha atualizada</a>',
-    unsafe_allow_html=True
-)
-
+        st.markdown(
+            f'<a href="{link_download}" target="_blank" download style="font-size:18px;">📥 Baixar planilha atualizada</a>',
+            unsafe_allow_html=True
+        )
     else:
         st.error("❌ Falha ao enviar a planilha para o GitHub.")
-
