@@ -2,15 +2,12 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 import os
-import base64
-import requests
 
 # CONFIG
 EXCEL_PATH = "Controle Transferencia.xlsx"
 SHEET_NAME = "Basae"
 FUSO_HORARIO = timezone(timedelta(hours=-3))  # UTC-3
 
-# CAMPOS PADRÃO
 campos_tempo = [
     "Entrada na Fábrica", "Encostou na doca Fábrica", "Início carregamento",
     "Fim carregamento", "Faturado", "Amarração carga", "Saída do pátio",
@@ -18,16 +15,14 @@ campos_tempo = [
     "Fim Descarregamento CD", "Saída CD"
 ]
 
-# Inicializa valores no session_state
+# Inicializa session_state para cada campo se não existir
 for campo in campos_tempo:
     if campo not in st.session_state:
         st.session_state[campo] = ""
 
-# Configura página
 st.set_page_config(page_title="Registro Transferência", layout="centered")
 st.title("🚚 Registro de Transferência de Carga")
 
-# Menu simples
 pagina = st.selectbox("📌 Escolha uma opção", ["Tela Inicial", "Lançar Novo Controle", "Editar Lançamentos Incompletos"])
 
 if pagina == "Tela Inicial":
@@ -63,20 +58,31 @@ elif pagina == "Lançar Novo Controle":
     placa = st.text_input("Placa do caminhão")
     conferente = st.text_input("Nome do conferente")
 
-    def registrar_tempo(label):
-        if st.button(f"Registrar {label}"):
-            st.session_state[label] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-            st.experimental_rerun()
+    # Variável para armazenar qual botão foi clicado
+    botao_clicado = None
 
     st.subheader("Fábrica")
     for campo in campos_tempo[:7]:
-        registrar_tempo(campo)
-        st.text_input(campo, value=st.session_state[campo], disabled=True)
+        col1, col2 = st.columns([3,1])
+        with col1:
+            st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
+        with col2:
+            if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
+                botao_clicado = campo
 
     st.subheader("Centro de Distribuição (CD)")
     for campo in campos_tempo[7:]:
-        registrar_tempo(campo)
-        st.text_input(campo, value=st.session_state[campo], disabled=True)
+        col1, col2 = st.columns([3,1])
+        with col1:
+            st.text_input(campo, value=st.session_state[campo], disabled=True, key=f"txt_{campo}")
+        with col2:
+            if st.button(f"Registrar {campo}", key=f"btn_{campo}"):
+                botao_clicado = campo
+
+    # Se algum botão foi clicado, atualiza o valor e rerun uma única vez
+    if botao_clicado is not None:
+        st.session_state[botao_clicado] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+        st.experimental_rerun()
 
     if st.button("✅ Salvar Registro"):
         nova_linha = {
@@ -97,7 +103,6 @@ elif pagina == "Lançar Novo Controle":
 
             st.success("✅ Registro salvo com sucesso!")
 
-            # Limpar session_state dos campos após salvar
             for campo in campos_tempo:
                 st.session_state[campo] = ""
 
@@ -110,7 +115,6 @@ elif pagina == "Editar Lançamentos Incompletos":
 
     if os.path.exists(EXCEL_PATH):
         df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
-        # Filtra registros com algum campo vazio ou NaN
         incompletos = df[df.isnull().any(axis=1) | (df == "").any(axis=1)]
 
         if not incompletos.empty:
