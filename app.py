@@ -1,150 +1,141 @@
-import streamlit as st 
+import streamlit as st
 import pandas as pd
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone, timedelta
 import os
+import base64
+import requests
 
-EXCEL_PATH = "dados_controle.xlsx"
-SHEET_NAME = "Controle"
-FUSO_HORARIO = pytz.timezone("America/Sao_Paulo")
+# CONFIG
+EXCEL_PATH = "Controle Transferencia.xlsx"
+SHEET_NAME = "Basae"
+FUSO_HORARIO = timezone(timedelta(hours=-3))  # UTC-3
 
-st.set_page_config(page_title="Controle Logístico", layout="centered")
+# CAMPOS PADRÃO
+campos_tempo = [
+    "Entrada na Fábrica", "Encostou na doca Fábrica", "Início carregamento",
+    "Fim carregamento", "Faturado", "Amarração carga", "Saída do pátio",
+    "Entrada CD", "Encostou na doca CD", "Início Descarregamento CD",
+    "Fim Descarregamento CD", "Saída CD"
+]
 
-def criar_planilha():
-    if not os.path.exists(EXCEL_PATH):
-        colunas = [
-            "Data", "Placa do caminhão", "Nome do conferente",
-            "Entrada no pátio", "Encostou na doca", "Início carregamento",
-            "Fim carregamento", "Faturado", "Amarração carga", "Saída CD"
-        ]
-        df_vazio = pd.DataFrame(columns=colunas)
-        df_vazio.to_excel(EXCEL_PATH, sheet_name=SHEET_NAME, index=False)
+# Inicializa valores no session_state
+for campo in campos_tempo:
+    if campo not in st.session_state:
+        st.session_state[campo] = ""
 
-criar_planilha()
+# Configura página
+st.set_page_config(page_title="Registro Transferência", layout="centered")
+st.title("🚚 Registro de Transferência de Carga")
 
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "inicial"
+# Menu simples
+pagina = st.selectbox("📌 Escolha uma opção", ["Tela Inicial", "Lançar Novo Controle", "Editar Lançamentos Incompletos"])
 
-if st.session_state.pagina == "inicial":
-    st.title("O que deseja fazer?")
+if pagina == "Tela Inicial":
+    st.subheader("O que deseja fazer?")
     col1, col2, col3 = st.columns(3)
 
     with col1:
         if st.button("📥 Baixar Arquivo"):
-            with open(EXCEL_PATH, "rb") as f:
-                st.download_button(
-                    label="Clique para baixar",
-                    data=f,
-                    file_name="dados_controle.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            if os.path.exists(EXCEL_PATH):
+                with open(EXCEL_PATH, "rb") as f:
+                    st.download_button(
+                        label="Clique aqui para baixar a planilha",
+                        data=f,
+                        file_name=EXCEL_PATH,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            else:
+                st.error("Arquivo local não encontrado.")
+
     with col2:
         if st.button("📝 Lançar Novo Controle"):
             st.session_state.pagina = "lancar"
             st.experimental_rerun()
+
     with col3:
         if st.button("✏️ Editar Lançamentos Incompletos"):
             st.session_state.pagina = "editar"
             st.experimental_rerun()
 
-elif st.session_state.pagina == "lancar":
-    st.header("📝 Novo Lançamento de Controle")
-
-    campos = [
-        "Entrada no pátio", "Encostou na doca", "Início carregamento",
-        "Fim carregamento", "Faturado", "Amarração carga", "Saída CD"
-    ]
-
-    # Inicializa valores dos campos no session_state
-    if "valores" not in st.session_state:
-        st.session_state.valores = {campo: "" for campo in campos}
-
+elif pagina == "Lançar Novo Controle":
+    st.subheader("Dados do Veículo")
     data = st.date_input("Data", value=datetime.now(FUSO_HORARIO).date())
     placa = st.text_input("Placa do caminhão")
     conferente = st.text_input("Nome do conferente")
 
-    # Para cada campo, mostra input + botão separado para "Registrar agora"
-    for campo in campos:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.session_state.valores[campo] = st.text_input(f"{campo}", value=st.session_state.valores[campo], key=f"{campo}_input")
-        with col2:
-            if st.button(f"Registrar agora - {campo}", key=f"btn_{campo}"):
-                st.session_state.valores[campo] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-                st.experimental_rerun()
+    def registrar_tempo(label):
+        if st.button(f"Registrar {label}"):
+            st.session_state[label] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+            st.experimental_rerun()
 
-    if st.button("Salvar Lançamento"):
-        novo = pd.DataFrame([{
+    st.subheader("Fábrica")
+    for campo in campos_tempo[:7]:
+        registrar_tempo(campo)
+        st.text_input(campo, value=st.session_state[campo], disabled=True)
+
+    st.subheader("Centro de Distribuição (CD)")
+    for campo in campos_tempo[7:]:
+        registrar_tempo(campo)
+        st.text_input(campo, value=st.session_state[campo], disabled=True)
+
+    if st.button("✅ Salvar Registro"):
+        nova_linha = {
             "Data": data.strftime("%Y-%m-%d"),
             "Placa do caminhão": placa,
             "Nome do conferente": conferente,
-            **st.session_state.valores
-        }])
+            **{campo: st.session_state[campo] for campo in campos_tempo},
+        }
+        try:
+            if os.path.exists(EXCEL_PATH):
+                df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
+                df_novo = pd.concat([df_existente, pd.DataFrame([nova_linha])], ignore_index=True)
+            else:
+                df_novo = pd.DataFrame([nova_linha])
 
-        df_existente = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
-        df_final = pd.concat([df_existente, novo], ignore_index=True)
+            with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
+                df_novo.to_excel(writer, sheet_name=SHEET_NAME, index=False)
 
-        with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
-            df_final.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+            st.success("✅ Registro salvo com sucesso!")
 
-        st.success("✅ Lançamento salvo com sucesso!")
-        st.session_state.valores = {campo: "" for campo in campos}
-        st.session_state.pagina = "inicial"
-        st.experimental_rerun()
+            # Limpar session_state dos campos após salvar
+            for campo in campos_tempo:
+                st.session_state[campo] = ""
 
-elif st.session_state.pagina == "editar":
-    st.subheader("✏️ Editar lançamentos onde 'Saída CD' ainda não foi preenchido")
+        except Exception as e:
+            st.error("Erro ao salvar planilha localmente:")
+            st.text(str(e))
+
+elif pagina == "Editar Lançamentos Incompletos":
+    st.subheader("✏️ Edição de Registros Incompletos")
 
     if os.path.exists(EXCEL_PATH):
         df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
-
-        incompletos = df[df["Saída CD"].isna() | (df["Saída CD"] == "")]
+        # Filtra registros com algum campo vazio ou NaN
+        incompletos = df[df.isnull().any(axis=1) | (df == "").any(axis=1)]
 
         if not incompletos.empty:
             idx = st.selectbox("Selecione um registro para editar:", incompletos.index)
             registro = incompletos.loc[idx]
-
-            st.markdown(f"**Data:** {registro['Data']} &nbsp;&nbsp;&nbsp; **Placa:** {registro['Placa do caminhão']}")
-            st.markdown(f"**Conferente:** {registro['Nome do conferente']}")
-
             campos_editaveis = {}
 
             for coluna in df.columns:
                 valor = registro[coluna]
                 if pd.isna(valor) or valor == "":
-                    key = f"{coluna}_edicao"
-                    if key not in st.session_state:
-                        st.session_state[key] = ""
-
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.session_state[key] = st.text_input(f"{coluna}", value=st.session_state[key], key=key)
-                    with col2:
-                        if st.button(f"Registrar agora: {coluna}", key=f"btn_{coluna}"):
-                            st.session_state[key] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-                            st.experimental_rerun()
-
-                    campos_editaveis[coluna] = key
+                    novo_valor = st.text_input(f"{coluna}", value="")
+                    campos_editaveis[coluna] = novo_valor
                 else:
-                    st.text_input(coluna, value=str(valor), disabled=True)
+                    st.text_input(f"{coluna}", value=str(valor), disabled=True)
 
-            if st.button("Salvar preenchimento"):
-                for coluna, state_key in campos_editaveis.items():
-                    valor_novo = st.session_state[state_key].strip()
-                    if valor_novo != "":
-                        df.at[idx, coluna] = valor_novo
+            if st.button("💾 Salvar preenchimento"):
+                for coluna, novo_valor in campos_editaveis.items():
+                    if novo_valor.strip() != "":
+                        df.at[idx, coluna] = novo_valor
 
                 with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl", mode="w") as writer:
                     df.to_excel(writer, sheet_name=SHEET_NAME, index=False)
 
                 st.success("✅ Registro atualizado com sucesso!")
-                st.session_state.pagina = "inicial"
-
-                for key in campos_editaveis.values():
-                    st.session_state[key] = ""
-
-                st.experimental_rerun()
         else:
-            st.info("✅ Todos os lançamentos já foram finalizados com 'Saída CD'.")
+            st.info("✅ Todos os registros estão completos!")
     else:
         st.error("❌ Planilha não encontrada.")
