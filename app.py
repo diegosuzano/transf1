@@ -18,7 +18,7 @@ def registrar_tempo(label):
 campos_tempo = [
     "Entrada na Fábrica", "Encostou na doca Fábrica", "Início carregamento",
     "Fim carregamento", "Faturado", "Amarração carga", "Saída do pátio",
-    "Entrada CD", "Encostou na doca CD", "Início Descarregamento CD",
+    "Entrada CD ", "Encostou na doca CD", "Início Descarregamento CD",
     "Fim Descarregamento CD", "Saída CD"
 ]
 for campo in campos_tempo:
@@ -52,9 +52,9 @@ tempo_carreg = calc_tempo("Fim carregamento", "Início carregamento")
 tempo_espera = calc_tempo("Encostou na doca Fábrica", "Entrada na Fábrica")
 tempo_total = calc_tempo("Saída do pátio", "Entrada na Fábrica")
 tempo_descarga = calc_tempo("Fim Descarregamento CD", "Início Descarregamento CD")
-tempo_espera_cd = calc_tempo("Encostou na doca CD", "Entrada CD")
-tempo_total_cd = calc_tempo("Saída CD", "Entrada CD")
-tempo_percurso = calc_tempo("Entrada CD", "Saída do pátio")
+tempo_espera_cd = calc_tempo("Encostou na doca CD", "Entrada CD ")
+tempo_total_cd = calc_tempo("Saída CD", "Entrada CD ")
+tempo_percurso = calc_tempo("Entrada CD ", "Saída do pátio")
 
 def enviar_para_github(caminho_arquivo, repo, caminho_repo, token):
     try:
