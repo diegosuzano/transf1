@@ -15,8 +15,14 @@ campos_tempo = [
     "Fim Descarregamento CD", "Saída CD"
 ]
 
-# Inicializa session_state para os campos de tempo
-for campo in campos_tempo:
+# Campos de cálculo que devem ser salvos
+campos_calculados = [
+    "Tempo Espera Doca", "Tempo Total", "Tempo de Descarregamento CD",
+    "Tempo Espera Doca CD", "Tempo Total CD", "Tempo Percurso Para CD"
+]
+
+# Inicializa session_state para os campos de tempo e calculados
+for campo in campos_tempo + campos_calculados:
     if campo not in st.session_state:
         st.session_state[campo] = ""
 
@@ -25,7 +31,34 @@ st.title("🚚 Registro de Transferência de Carga")
 
 pagina = st.selectbox("📌 Escolha uma opção", ["Tela Inicial", "Lançar Novo Controle", "Editar Lançamentos Incompletos", "Em Operação"])
 
+# Função para calcular diferença de tempo
+def calcular_tempo(inicio, fim):
+    if pd.isna(inicio) or pd.isna(fim) or inicio == "" or fim == "":
+        return ""
+    try:
+        inicio_dt = pd.to_datetime(inicio)
+        fim_dt = pd.to_datetime(fim)
+        diff = fim_dt - inicio_dt
+        horas = int(diff.total_seconds() // 3600)
+        minutos = int((diff.total_seconds() % 3600) // 60)
+        return f"{horas:02d}:{minutos:02d}"
+    except:
+        return ""
+
+# Função para encontrar o último campo preenchido (status)
+def obter_status(registro):
+    for campo in reversed(campos_tempo):
+        if not pd.isna(registro[campo]) and registro[campo] != "":
+            return campo
+    return "Não iniciado"
+
+
 if pagina == "Tela Inicial":
+    # Exibir logo Suzano
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("suzano_logo.png", width=300)
+    
     st.subheader("Bem-vindo ao Sistema de Controle de Transferência")
     st.write("Use o menu acima para navegar entre as opções disponíveis:")
     st.write("- **Lançar Novo Controle**: Para registrar um novo controle de transferência")
@@ -71,11 +104,25 @@ elif pagina == "Lançar Novo Controle":
                 # NÃO CHAMAR st.experimental_rerun() aqui!
 
     if st.button("✅ Salvar Registro"):
+        # Calcular os tempos antes de salvar
+        tempo_espera_doca = calcular_tempo(st.session_state.get("Entrada na Fábrica"), st.session_state.get("Encostou na doca Fábrica"))
+        tempo_total = calcular_tempo(st.session_state.get("Entrada na Fábrica"), st.session_state.get("Saída do pátio"))
+        tempo_descarregamento_cd = calcular_tempo(st.session_state.get("Início Descarregamento CD"), st.session_state.get("Fim Descarregamento CD"))
+        tempo_espera_doca_cd = calcular_tempo(st.session_state.get("Entrada CD"), st.session_state.get("Encostou na doca CD"))
+        tempo_total_cd = calcular_tempo(st.session_state.get("Entrada CD"), st.session_state.get("Saída CD"))
+        tempo_percurso_para_cd = calcular_tempo(st.session_state.get("Saída do pátio"), st.session_state.get("Entrada CD"))
+
         nova_linha = {
             "Data": data.strftime("%Y-%m-%d"),
             "Placa do caminhão": placa,
             "Nome do conferente": conferente,
             **{campo: st.session_state[campo] for campo in campos_tempo},
+            "Tempo Espera Doca": tempo_espera_doca,
+            "Tempo Total": tempo_total,
+            "Tempo de Descarregamento CD": tempo_descarregamento_cd,
+            "Tempo Espera Doca CD": tempo_espera_doca_cd,
+            "Tempo Total CD": tempo_total_cd,
+            "Tempo Percurso Para CD": tempo_percurso_para_cd
         }
         try:
             if os.path.exists(EXCEL_PATH):
@@ -90,7 +137,7 @@ elif pagina == "Lançar Novo Controle":
             st.success("✅ Registro salvo com sucesso!")
 
             # Limpa campos depois de salvar
-            for campo in campos_tempo:
+            for campo in campos_tempo + campos_calculados:
                 st.session_state[campo] = ""
 
 
@@ -173,47 +220,107 @@ elif pagina == "Em Operação":
         em_operacao = df[(pd.isna(df["Saída CD"])) | (df["Saída CD"] == "")]
         
         if not em_operacao.empty:
-            # Função para calcular diferença de tempo
-            def calcular_tempo(inicio, fim):
-                if pd.isna(inicio) or pd.isna(fim) or inicio == "" or fim == "":
-                    return ""
-                try:
-                    inicio_dt = pd.to_datetime(inicio)
-                    fim_dt = pd.to_datetime(fim)
-                    diff = fim_dt - inicio_dt
-                    horas = int(diff.total_seconds() // 3600)
-                    minutos = int((diff.total_seconds() % 3600) // 60)
-                    return f"{horas:02d}:{minutos:02d}"
-                except:
-                    return ""
+            # Métricas gerais
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("🚚 Veículos em Operação", len(em_operacao))
+            with col2:
+                na_fabrica = len(em_operacao[pd.isna(em_operacao["Entrada CD"]) | (em_operacao["Entrada CD"] == "")])
+                st.metric("🏭 Na Fábrica", na_fabrica)
+            with col3:
+                no_cd = len(em_operacao) - na_fabrica
+                st.metric("📦 No CD", no_cd)
             
-            # Função para encontrar o último campo preenchido (status)
-            def obter_status(registro):
-                for campo in reversed(campos_tempo):
-                    if not pd.isna(registro[campo]) and registro[campo] != "":
-                        return campo
-                return "Não iniciado"
+            st.divider()
             
-            # Preparar dados para exibição
+            # Exibir cada veículo em um card expandível
+            for idx in em_operacao.index:
+                registro = em_operacao.loc[idx]
+                placa = registro.get('Placa do caminhão', 'N/A')
+                status = obter_status(registro)
+                conferente = registro.get('Nome do conferente', 'N/A')
+                
+                # Determinar cor do status
+                if "Saída" in status:
+                    status_color = "🟢"
+                elif "CD" in status:
+                    status_color = "🟡"
+                elif "Fábrica" in status or "carregamento" in status:
+                    status_color = "🔵"
+                else:
+                    status_color = "⚪"
+                
+                with st.expander(f"{status_color} **{placa}** - {status}", expanded=False):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**📋 Conferente:** {conferente}")
+                        st.write(f"**📅 Data:** {registro.get('Data', 'N/A')}")
+                        st.write(f"**🔄 Status Atual:** {status}")
+                    
+                    with col2:
+                        # Calcular e exibir tempos
+                        tempo_espera_doca = calcular_tempo(registro.get("Entrada na Fábrica"), registro.get("Encostou na doca Fábrica"))
+                        tempo_total = calcular_tempo(registro.get("Entrada na Fábrica"), registro.get("Saída do pátio"))
+                        tempo_descarregamento_cd = calcular_tempo(registro.get("Início Descarregamento CD"), registro.get("Fim Descarregamento CD"))
+                        tempo_espera_doca_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Encostou na doca CD"))
+                        tempo_total_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Saída CD"))
+                        tempo_percurso_para_cd = calcular_tempo(registro.get("Saída do pátio"), registro.get("Entrada CD"))
+                        
+                        if tempo_espera_doca:
+                            st.metric("⏱️ Tempo Espera Doca", tempo_espera_doca)
+                        if tempo_total:
+                            st.metric("⏰ Tempo Total Fábrica", tempo_total)
+                        if tempo_percurso_para_cd:
+                            st.metric("🚛 Tempo Percurso CD", tempo_percurso_para_cd)
+                    
+                    # Timeline visual dos eventos
+                    st.write("**📊 Timeline dos Eventos:**")
+                    timeline_cols = st.columns(6)
+                    
+                    eventos = [
+                        ("Entrada Fábrica", registro.get("Entrada na Fábrica")),
+                        ("Doca Fábrica", registro.get("Encostou na doca Fábrica")),
+                        ("Carregamento", registro.get("Fim carregamento")),
+                        ("Saída Fábrica", registro.get("Saída do pátio")),
+                        ("Entrada CD", registro.get("Entrada CD")),
+                        ("Saída CD", registro.get("Saída CD"))
+                    ]
+                    
+                    for i, (evento, timestamp) in enumerate(eventos):
+                        with timeline_cols[i]:
+                            if timestamp and not pd.isna(timestamp) and timestamp != "":
+                                st.success(f"✅ {evento}")
+                                st.caption(timestamp.split()[1] if " " in str(timestamp) else str(timestamp))
+                            else:
+                                st.info(f"⏳ {evento}")
+                                st.caption("Pendente")
+            
+            st.divider()
+            
+            # Tabela resumo
+            st.subheader("📊 Resumo Geral")
             dados_operacao = []
             for idx in em_operacao.index:
                 registro = em_operacao.loc[idx]
                 
                 # Calcular tempos
-                tempo_carregamento = calcular_tempo(registro.get('Início carregamento'), registro.get('Fim carregamento'))
-                tempo_total_fabrica = calcular_tempo(registro.get('Entrada na Fábrica'), registro.get('Saída do pátio'))
-                tempo_percurso_cd = calcular_tempo(registro.get('Saída do pátio'), registro.get('Entrada CD'))
-                tempo_descarregamento_cd = calcular_tempo(registro.get('Início Descarregamento CD'), registro.get('Fim Descarregamento CD'))
-                tempo_total_cd = calcular_tempo(registro.get('Entrada CD'), registro.get('Saída CD'))
+                tempo_espera_doca = calcular_tempo(registro.get("Entrada na Fábrica"), registro.get("Encostou na doca Fábrica"))
+                tempo_total = calcular_tempo(registro.get("Entrada na Fábrica"), registro.get("Saída do pátio"))
+                tempo_descarregamento_cd = calcular_tempo(registro.get("Início Descarregamento CD"), registro.get("Fim Descarregamento CD"))
+                tempo_espera_doca_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Encostou na doca CD"))
+                tempo_total_cd = calcular_tempo(registro.get("Entrada CD"), registro.get("Saída CD"))
+                tempo_percurso_para_cd = calcular_tempo(registro.get("Saída do pátio"), registro.get("Entrada CD"))
                 
                 dados_operacao.append({
                     'Placa': registro.get('Placa do caminhão', ''),
                     'Status': obter_status(registro),
-                    'Tempo Carregamento': tempo_carregamento,
-                    'Tempo Total Fábrica': tempo_total_fabrica,
-                    'Tempo Percurso Para CD': tempo_percurso_cd,
-                    'Tempo Descarregamento CD': tempo_descarregamento_cd,
-                    'Tempo Total CD': tempo_total_cd
+                    'Tempo Espera Doca': tempo_espera_doca,
+                    'Tempo Total': tempo_total,
+                    'Tempo de Descarregamento CD': tempo_descarregamento_cd,
+                    'Tempo Espera Doca CD': tempo_espera_doca_cd,
+                    'Tempo Total CD': tempo_total_cd,
+                    'Tempo Percurso Para CD': tempo_percurso_para_cd
                 })
             
             # Exibir tabela
