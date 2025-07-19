@@ -167,11 +167,11 @@ def botao_voltar():
         st.rerun()
 
 # Header principal
-st.markdown('<div class="main-header">🚚 Suzano - Controle de Transferência de Carga</div>', unsafe_allow_html=True)
+st.markdown("<div class=\"main-header\">🚚 Suzano - Controle de Transferência de Carga</div>", unsafe_allow_html=True)
 
 # TELA INICIAL COM BOTÕES
 if st.session_state.pagina_atual == "Tela Inicial":
-    st.markdown('<div class="section-header">📋 Escolha uma opção:</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">📋 Escolha uma opção:</div>", unsafe_allow_html=True)
     
     # Layout em colunas para os botões principais
     col1, col2 = st.columns(2)
@@ -195,7 +195,7 @@ if st.session_state.pagina_atual == "Tela Inicial":
             st.rerun()
     
     # Seção de informações e download
-    st.markdown('<div class="section-header">📥 Download da Planilha</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">📥 Download da Planilha</div>", unsafe_allow_html=True)
     
     if os.path.exists(EXCEL_PATH):
         with open(EXCEL_PATH, "rb") as f:
@@ -214,7 +214,7 @@ if st.session_state.pagina_atual == "Tela Inicial":
         try:
             df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
             
-            st.markdown('<div class="section-header">📈 Resumo Rápido</div>', unsafe_allow_html=True)
+            st.markdown("<div class=\"section-header\">📈 Resumo Rápido</div>", unsafe_allow_html=True)
             
             col1, col2, col3 = st.columns(3)
             
@@ -237,7 +237,7 @@ if st.session_state.pagina_atual == "Tela Inicial":
 elif st.session_state.pagina_atual == "Lançar Novo Controle":
     botao_voltar()
     
-    st.markdown('<div class="section-header">🆕 Novo Registro de Transferência</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">🆕 Novo Registro de Transferência</div>", unsafe_allow_html=True)
     
     # Dados básicos em layout mais limpo
     col1, col2, col3 = st.columns(3)
@@ -250,7 +250,7 @@ elif st.session_state.pagina_atual == "Lançar Novo Controle":
         conferente = st.text_input("👤 Nome do Conferente", placeholder="Digite o nome")
 
     # Seção Fábrica
-    st.markdown('<div class="section-header">🏭 Registros da Fábrica</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">🏭 Registros da Fábrica</div>", unsafe_allow_html=True)
     
     for i, campo in enumerate(campos_tempo[:7]):
         col1, col2 = st.columns([3, 1])
@@ -267,7 +267,7 @@ elif st.session_state.pagina_atual == "Lançar Novo Controle":
                 st.rerun()
 
     # Seção CD
-    st.markdown('<div class="section-header">📦 Registros do Centro de Distribuição</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">📦 Registros do Centro de Distribuição</div>", unsafe_allow_html=True)
     
     for campo in campos_tempo[7:]:
         col1, col2 = st.columns([3, 1])
@@ -360,7 +360,7 @@ elif st.session_state.pagina_atual == "Lançar Novo Controle":
 elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
     botao_voltar()
     
-    st.markdown('<div class="section-header">✏️ Editar Registros Incompletos</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">✏️ Editar Registros Incompletos</div>", unsafe_allow_html=True)
 
     if os.path.exists(EXCEL_PATH):
         df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
@@ -401,7 +401,7 @@ elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
                         campos_editaveis.append(coluna)
 
                 if campos_editaveis:
-                    st.markdown('<div class="section-header">📝 Campos Disponíveis para Edição</div>', unsafe_allow_html=True)
+                    st.markdown("<div class=\"section-header\">📝 Campos Disponíveis para Edição</div>", unsafe_allow_html=True)
                     
                     for coluna in campos_editaveis:
                         col1, col2 = st.columns([3, 1])
@@ -409,10 +409,10 @@ elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
                             st.text_input(f"📋 {coluna}", value=st.session_state[f"temp_edit_{coluna}"], key=f"temp_edit_{coluna}")
                         with col2:
                             if coluna in campos_tempo:
+                                def update_time(col):
+                                    st.session_state[f"temp_edit_{col}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+                                st.button(f"⏰ Agora", key=f"btn_now_{coluna}", on_click=update_time, args=(coluna,))
 
-
-
-                    # Botão de salvar
                     st.markdown("---")
                     col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
@@ -445,7 +445,7 @@ elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
 elif st.session_state.pagina_atual == "Em Operação":
     botao_voltar()
     
-    st.markdown('<div class="section-header">🚛 Registros em Operação</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">🚛 Registros em Operação</div>", unsafe_allow_html=True)
     
     if os.path.exists(EXCEL_PATH):
         df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
@@ -495,7 +495,7 @@ elif st.session_state.pagina_atual == "Em Operação":
                         st.write(f"**📍 Status Atual:** {status}")
                     
                     with col2:
-                        # Calcular e exibir tempos
+                        # Tempos calculados
                         tempo_espera_doca = calcular_tempo(registro.get("Entrada na Fábrica"), registro.get("Encostou na doca Fábrica"))
                         tempo_total = calcular_tempo(registro.get("Entrada na Fábrica"), registro.get("Saída do pátio"))
                         tempo_percurso_para_cd = calcular_tempo(registro.get("Saída do pátio"), registro.get("Entrada CD"))
@@ -535,7 +535,7 @@ elif st.session_state.pagina_atual == "Em Operação":
 elif st.session_state.pagina_atual == "Finalizadas":
     botao_voltar()
     
-    st.markdown('<div class="section-header">✅ Registros Finalizados</div>', unsafe_allow_html=True)
+    st.markdown("<div class=\"section-header\">✅ Registros Finalizados</div>", unsafe_allow_html=True)
     
     if os.path.exists(EXCEL_PATH):
         df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME, engine="openpyxl")
@@ -586,3 +586,4 @@ elif st.session_state.pagina_atual == "Finalizadas":
             st.info("📋 Nenhum registro finalizado no momento.")
     else:
         st.error("❌ Planilha não encontrada.")
+
