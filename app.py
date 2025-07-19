@@ -390,7 +390,7 @@ elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
                 
                 # Inicializa session_state para os campos editáveis se ainda não existirem
                 for coluna in df.columns:
-                    if f"edit_{coluna}" not in st.session_state:
+                    if f"temp_edit_{coluna}" not in st.session_state:
                         st.session_state[f"temp_edit_{coluna}"] = str(registro[coluna]) if not pd.isna(registro[coluna]) else ""
 
                 # Campos editáveis organizados por seção
@@ -409,9 +409,8 @@ elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
                             st.text_input(f"📋 {coluna}", value=st.session_state[f"temp_edit_{coluna}"], key=f"temp_edit_{coluna}")
                         with col2:
                             if coluna in campos_tempo:
-                                if st.button(f"⏰ Agora", key=f"btn_now_{coluna}", help=f"Registrar {coluna} agora"):
-                                    st.session_state[f"temp_edit_{coluna}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-                                st.rerun()
+
+
 
                     # Botão de salvar
                     st.markdown("---")
@@ -420,7 +419,7 @@ elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
                         if st.button("💾 SALVAR ALTERAÇÕES", key="btn_salvar_edicao", use_container_width=True):
                             for coluna in df.columns:
                                 if pd.isna(registro[coluna]) or registro[coluna] == "":
-                                    novo_valor = st.session_state[f"edit_{coluna}"]
+                                    novo_valor = st.session_state[f"temp_edit_{coluna}"]
                                     if novo_valor.strip() != "":
                                         df.at[idx, coluna] = novo_valor
 
@@ -431,8 +430,8 @@ elif st.session_state.pagina_atual == "Editar Lançamentos Incompletos":
                             
                             # Limpa os campos editáveis do session_state
                             for coluna in df.columns:
-                                if f"edit_{coluna}" in st.session_state:
-                                    del st.session_state[f"edit_{coluna}"]
+                                if f"temp_edit_{coluna}" in st.session_state:
+                                    del st.session_state[f"temp_edit_{coluna}"]
                             
                             st.rerun()
                 else:
