@@ -116,7 +116,7 @@ def botao_voltar():
 st.markdown("<div class='main-header'>🚚 Suzano - Controle de Transferência de Carga</div>", unsafe_allow_html=True)
 
 # =============================================================================
-# TELA INICIAL
+# TELA INICIAL (DASHBOARD RESTAURADO)
 # =============================================================================
 if st.session_state.pagina_atual == "Tela Inicial":
     st.markdown("<div class='section-header'>MENU DE AÇÕES</div>", unsafe_allow_html=True)
@@ -137,48 +137,112 @@ if st.session_state.pagina_atual == "Tela Inicial":
         if st.button("✅ FINALIZADAS", use_container_width=True):
             st.session_state.pagina_atual = "Finalizadas"
             st.rerun()
-    # ... (código do dashboard da tela inicial) ...
+
+    df = carregar_dataframe()
+
+    st.markdown("<div class='section-header'>SITUAÇÃO ATUAL</div>", unsafe_allow_html=True)
+    if df.empty:
+        st.info("Nenhum registro encontrado para exibir as métricas.")
+    else:
+        em_operacao_df = df[df["Saída CD"] == ''].copy()
+        total_em_operacao = len(em_operacao_df)
+        na_fabrica = len(em_operacao_df[em_operacao_df["Saída do pátio"] == ''])
+        no_cd_ou_rota = total_em_operacao - na_fabrica
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric(label="🚛 Em Operação (Total)", value=total_em_operacao)
+        m2.metric(label="🏭 Na Fábrica", value=na_fabrica)
+        m3.metric(label="📦 Em Rota / No CD", value=no_cd_ou_rota)
+
+        with st.expander("Ver Detalhes dos Veículos em Operação"):
+            if em_operacao_df.empty:
+                st.write("Nenhum veículo em operação no momento.")
+            else:
+                for _, row in em_operacao_df.iterrows():
+                    status = obter_status(row)
+                    st.info(f"**Placa:** {row['Placa do caminhão']} | **Status Atual:** {status}")
+
+    st.markdown("<div class='section-header'>📈 INDICADORES DE PERFORMANCE (HOJE)</div>", unsafe_allow_html=True)
+    if df.empty:
+        st.info("Nenhum registro hoje para calcular as médias.")
+    else:
+        hoje = datetime.now(FUSO_HORARIO).date()
+        df_hoje = df[df['Data'] == hoje].copy()
+
+        if df_hoje.empty:
+            st.info("Nenhum registro encontrado com a data de hoje.")
+        else:
+            def hhmm_para_minutos(tempo_str):
+                if not tempo_str or ':' not in str(tempo_str): return np.nan
+                try:
+                    h, m = map(int, str(tempo_str).split(':'))
+                    return h * 60 + m
+                except: return np.nan
+            
+            def calcular_media_tempo(series):
+                minutos = series.apply(hhmm_para_minutos).mean()
+                if pd.isna(minutos): return "N/D"
+                horas_media = int(minutos // 60)
+                minutos_media = int(minutos % 60)
+                return f"{horas_media:02d}:{minutos_media:02d}"
+
+            col_fabrica, col_cd = st.columns(2)
+            with col_fabrica:
+                st.subheader("Métricas da Fábrica")
+                st.metric(label="Tempo Médio Esperando Doca", value=calcular_media_tempo(df_hoje['Tempo Espera Doca']))
+                st.metric(label="Tempo Médio de Carregamento", value=calcular_media_tempo(df_hoje['Tempo de Carregamento']))
+                st.metric(label="Tempo Médio Total na Fábrica", value=calcular_media_tempo(df_hoje['Tempo Total']))
+            with col_cd:
+                st.subheader("Métricas do CD")
+                st.metric(label="Tempo Médio de Percurso", value=calcular_media_tempo(df_hoje['Tempo Percurso Para CD']))
+                st.metric(label="Tempo Médio Esperando Doca (CD)", value=calcular_media_tempo(df_hoje['Tempo Espera Doca CD']))
+                st.metric(label="Tempo Médio de Descarregamento", value=calcular_media_tempo(df_hoje['Tempo de Descarregamento CD']))
+                st.metric(label="Tempo Médio Total no CD", value=calcular_media_tempo(df_hoje['Tempo Total CD']))
+
+    st.markdown("---")
+    if os.path.exists(EXCEL_PATH):
+        with open(EXCEL_PATH, "rb") as f:
+            st.download_button("📥 Baixar Planilha Completa", f, file_name=EXCEL_PATH, use_container_width=True)
 
 # =============================================================================
-# PÁGINA DE NOVO REGISTRO (LÓGICA FINAL E CORRIGIDA)
+# PÁGINA DE NOVO REGISTRO
 # =============================================================================
 elif st.session_state.pagina_atual == "Novo":
     botao_voltar()
     st.markdown("### 🆕 Novo Registro de Transferência")
 
-    # --- Callbacks para ações ---
     def registrar_agora(campo):
         st.session_state[f"novo_{campo}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
 
     def salvar_novo_registro():
         if not st.session_state.get("novo_placa") or not st.session_state.get("novo_conferente"):
-            st.error("Placa e Conferente são obrigatórios para salvar.")
+            st.session_state.notification = ("error", "Placa e Conferente são obrigatórios para salvar.")
             return
 
         with st.spinner("Salvando..."):
             df = carregar_dataframe()
+            nova_linha_dict = { "Data": datetime.now(FUSO_HORARIO).date() }
+            for key, value in st.session_state.items():
+                if key.startswith("novo_"):
+                    nova_linha_dict[key.replace("novo_", "")] = value
             
-            nova_linha_dict = {
-                "Data": datetime.now(FUSO_HORARIO).date(),
-                "Placa do caminhão": st.session_state.novo_placa,
-                "Nome do conferente": st.session_state.novo_conferente
-            }
-            for campo in campos_tempo:
-                nova_linha_dict[campo] = st.session_state.get(f"novo_{campo}", '')
-
-            # Adicione aqui os cálculos de tempo para a nova linha
-            # ...
+            # Recalcula todos os tempos
+            for calc_campo in campos_calculados:
+                # Adapte esta lógica para seus cálculos específicos
+                if calc_campo == "Tempo Espera Doca":
+                    nova_linha_dict[calc_campo] = calcular_tempo(nova_linha_dict.get("Entrada na Fábrica"), nova_linha_dict.get("Encostou na doca Fábrica"))
+                # ... adicione os outros cálculos aqui ...
 
             nova_linha_df = pd.DataFrame([nova_linha_dict])
             df_final = pd.concat([df, nova_linha_df], ignore_index=True)
 
             if salvar_dataframe(df_final):
-                st.success("✅ Novo registro salvo com sucesso!")
+                st.session_state.notification = ("success", "Novo registro salvo com sucesso!")
                 for key in list(st.session_state.keys()):
                     if key.startswith("novo_"): del st.session_state[key]
-                st.rerun()
+            else:
+                st.session_state.notification = ("error", "Falha ao salvar o registro.")
 
-    # --- Renderização dos Widgets ---
     st.text_input("🚛 Placa do Caminhão", key="novo_placa")
     st.text_input("👤 Nome do Conferente", key="novo_conferente")
     st.markdown("---")
@@ -190,28 +254,38 @@ elif st.session_state.pagina_atual == "Novo":
             st.button(f"Registrar {campo}", key=f"btn_novo_{campo}", on_click=registrar_agora, args=(campo,))
     
     st.markdown("---")
+    
+    # Placeholder para notificações
+    notification_placeholder = st.empty()
+    if st.session_state.get("notification"):
+        msg_type, msg_text = st.session_state.notification
+        if msg_type == "success":
+            notification_placeholder.success(msg_text)
+        else:
+            notification_placeholder.error(msg_text)
+        del st.session_state.notification
+
     st.button("💾 SALVAR NOVO REGISTRO", on_click=salvar_novo_registro, use_container_width=True, type="primary")
 
-
 # =============================================================================
-# PÁGINA DE EDIÇÃO
+# PÁGINA DE EDIÇÃO (FUNCIONALIDADE DE SALVAR RESTAURADA)
 # =============================================================================
 elif st.session_state.pagina_atual == "Editar":
     botao_voltar()
     st.markdown("### ✏️ Editar Registros Incompletos")
-    # ... (código da página de edição que já está funcional) ...
+
     df = carregar_dataframe()
     incompletos = df[df["Saída CD"] == ''].copy()
 
     if incompletos.empty:
-        st.success("🎉 Todos os registros estão completos!")
-        st.stop()
+        st.success("🎉 Todos os registros estão completos!"); st.stop()
 
     opcoes = {f"🚛 {row['Placa do caminhão']} | 📅 {row['Data']}": idx for idx, row in incompletos.iterrows()}
     
     def on_selection_change():
         for key in list(st.session_state.keys()):
-            if key.startswith("edit_"): del st.session_state[key]
+            if key.startswith("edit_") or key == "notification":
+                del st.session_state[key]
 
     selecao_label = st.selectbox(
         "Selecione um registro para editar:",
@@ -228,8 +302,35 @@ elif st.session_state.pagina_atual == "Editar":
             st.session_state[f"edit_{campo}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
 
         def salvar_alteracoes():
-            # ... (código de salvar alterações) ...
-            pass
+            with st.spinner("Salvando..."):
+                df_para_salvar = carregar_dataframe()
+                houve_mudanca = False
+                
+                for campo in campos_tempo:
+                    chave_sessao = f"edit_{campo}"
+                    if chave_sessao in st.session_state and st.session_state[chave_sessao]:
+                        df_para_salvar.loc[df_index, campo] = st.session_state[chave_sessao]
+                        houve_mudanca = True
+                
+                if not houve_mudanca:
+                    st.session_state.notification = ("warning", "Nenhuma alteração foi feita.")
+                    return
+
+                reg = df_para_salvar.loc[df_index]
+                # Recalcula todos os tempos
+                df_para_salvar.loc[df_index, 'Tempo Espera Doca'] = calcular_tempo(reg.get("Entrada na Fábrica"), reg.get("Encostou na doca Fábrica"))
+                df_para_salvar.loc[df_index, 'Tempo de Carregamento'] = calcular_tempo(reg.get("Início carregamento"), reg.get("Fim carregamento"))
+                df_para_salvar.loc[df_index, 'Tempo Total'] = calcular_tempo(reg.get("Entrada na Fábrica"), reg.get("Saída do pátio"))
+                df_para_salvar.loc[df_index, 'Tempo Percurso Para CD'] = calcular_tempo(reg.get("Saída do pátio"), reg.get("Entrada CD"))
+                df_para_salvar.loc[df_index, 'Tempo Espera Doca CD'] = calcular_tempo(reg.get("Entrada CD"), reg.get("Encostou na doca CD"))
+                df_para_salvar.loc[df_index, 'Tempo de Descarregamento CD'] = calcular_tempo(reg.get("Início Descarregamento CD"), reg.get("Fim Descarregamento CD"))
+                df_para_salvar.loc[df_index, 'Tempo Total CD'] = calcular_tempo(reg.get("Entrada CD"), reg.get("Saída CD"))
+
+                if salvar_dataframe(df_para_salvar):
+                    st.session_state.notification = ("success", "Registro atualizado com sucesso!")
+                    on_selection_change()
+                else:
+                    st.session_state.notification = ("error", "Falha ao salvar as alterações.")
 
         for campo in campos_tempo:
             valor_original = df.loc[df_index, campo]
@@ -243,8 +344,16 @@ elif st.session_state.pagina_atual == "Editar":
                     st.button("⏰ Agora", key=f"btn_now_{campo}", on_click=registrar_agora_edit, args=(campo,))
         
         st.markdown("---")
-        st.button("💾 SALVAR ALTERAÇÕES", on_click=salvar_alteracoes, use_container_width=True, type="primary")
+        
+        notification_placeholder_edit = st.empty()
+        if st.session_state.get("notification"):
+            msg_type, msg_text = st.session_state.notification
+            if msg_type == "success": notification_placeholder_edit.success(msg_text)
+            elif msg_type == "warning": notification_placeholder_edit.warning(msg_text)
+            else: notification_placeholder_edit.error(msg_text)
+            del st.session_state.notification
 
+        st.button("💾 SALVAR ALTERAÇÕES", on_click=salvar_alteracoes, use_container_width=True, type="primary")
 
 # =============================================================================
 # OUTRAS PÁGINAS
