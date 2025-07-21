@@ -34,7 +34,7 @@ st.set_page_config(
 st.markdown("""<style>...</style>""", unsafe_allow_html=True) 
 
 # --- FUNÇÕES AUXILIARES ---
-@st.cache_data(ttl=30) # Cache mais curto para refletir mudanças mais rápido
+@st.cache_data(ttl=30)
 def carregar_dataframe():
     if not os.path.exists(EXCEL_PATH):
         return pd.DataFrame(columns=COLUNAS_ESPERADAS)
@@ -110,13 +110,14 @@ if st.session_state.pagina_atual == "Tela Inicial":
 # PÁGINA DE NOVO REGISTRO (CÓDIGO COMPLETO RESTAURADO)
 # =============================================================================
 elif st.session_state.pagina_atual == "Novo":
-    # Adapte esta seção com seu código original de "Novo Registro" se necessário
     botao_voltar()
     st.markdown("### 🆕 Novo Registro de Transferência")
-    # ... Seu código para novo registro aqui ...
+    # Cole aqui o seu código original da página de Novo Registro
+    st.info("Página de Novo Registro. Adapte com seu código original.")
+
 
 # =============================================================================
-# PÁGINA DE EDIÇÃO (LÓGICA FINAL E CORRIGIDA)
+# PÁGINA DE EDIÇÃO (LÓGICA FINAL, SIMPLES E CORRIGIDA)
 # =============================================================================
 elif st.session_state.pagina_atual == "Editar":
     botao_voltar()
@@ -131,10 +132,17 @@ elif st.session_state.pagina_atual == "Editar":
 
     opcoes = {f"🚛 {row['Placa do caminhão']} | 📅 {row['Data']}": idx for idx, row in incompletos.iterrows()}
     
+    # Função para limpar o estado de edição ao trocar de item
+    def on_selection_change():
+        for key in list(st.session_state.keys()):
+            if key.startswith("edit_"):
+                del st.session_state[key]
+
     selecao_label = st.selectbox(
         "Selecione um registro para editar:",
         options=["Selecione..."] + list(opcoes.keys()),
-        key="selectbox_edicao"
+        key="selectbox_edicao",
+        on_change=on_selection_change
     )
 
     if selecao_label and selecao_label != "Selecione...":
@@ -142,61 +150,57 @@ elif st.session_state.pagina_atual == "Editar":
         
         st.markdown(f"#### Editando Placa: **{df.loc[df_index, 'Placa do caminhão']}**")
 
-        # Callback para o botão "Agora" - a forma segura de atualizar o estado
+        # --- Callbacks (a forma correta de lidar com ações) ---
         def registrar_agora(campo):
             st.session_state[f"edit_{campo}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
 
-        # Usamos um formulário para agrupar os inputs e o botão de salvar
-        with st.form("edit_form"):
-            # Itera por todos os campos de tempo para mostrar o progresso completo
-            for campo in campos_tempo:
-                valor_original = df.loc[df_index, campo]
+        def salvar_alteracoes():
+            with st.spinner("Salvando..."):
+                df_para_salvar = carregar_dataframe() # Recarrega para evitar conflitos
+                houve_mudanca = False
                 
-                # Se o campo JÁ FOI PREENCHIDO, mostra como informação desabilitada
-                if valor_original and str(valor_original).strip() != '':
-                    st.text_input(f"✅ {campo}", value=valor_original, disabled=True)
-                # Se o campo ESTÁ VAZIO, oferece a opção de editar
-                else:
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        # O input lê o valor do session_state para se manter atualizado
-                        st.text_input(f"📋 {campo}", key=f"edit_{campo}")
-                    with col2:
-                        # O botão "Agora" NÃO está no formulário, ele tem seu próprio callback
-                        st.button("⏰ Agora", key=f"btn_now_{campo}", on_click=registrar_agora, args=(campo,))
-            
-            st.markdown("---")
-            submitted = st.form_submit_button("💾 SALVAR ALTERAÇÕES", use_container_width=True, type="primary")
-            
-            if submitted:
-                with st.spinner("Salvando..."):
-                    houve_mudanca = False
-                    # Pega os valores do formulário (do session_state) e atualiza o DataFrame
-                    for campo in campos_tempo:
-                        if f"edit_{campo}" in st.session_state and st.session_state[f"edit_{campo}"]:
-                            df.loc[df_index, campo] = st.session_state[f"edit_{campo}"]
-                            houve_mudanca = True
-                    
-                    if not houve_mudanca:
-                        st.warning("Nenhuma alteração foi feita.")
-                        st.stop()
+                for campo in campos_tempo:
+                    chave_sessao = f"edit_{campo}"
+                    if chave_sessao in st.session_state and st.session_state[chave_sessao]:
+                        df_para_salvar.loc[df_index, campo] = st.session_state[chave_sessao]
+                        houve_mudanca = True
+                
+                if not houve_mudanca:
+                    st.warning("Nenhuma alteração foi feita.")
+                    return
 
-                    # Recalcula todos os campos de tempo
-                    reg = df.loc[df_index]
-                    df.loc[df_index, 'Tempo Espera Doca'] = calcular_tempo(reg.get("Entrada na Fábrica"), reg.get("Encostou na doca Fábrica"))
-                    df.loc[df_index, 'Tempo de Carregamento'] = calcular_tempo(reg.get("Início carregamento"), reg.get("Fim carregamento"))
-                    df.loc[df_index, 'Tempo Total'] = calcular_tempo(reg.get("Entrada na Fábrica"), reg.get("Saída do pátio"))
-                    df.loc[df_index, 'Tempo Percurso Para CD'] = calcular_tempo(reg.get("Saída do pátio"), reg.get("Entrada CD"))
-                    df.loc[df_index, 'Tempo Espera Doca CD'] = calcular_tempo(reg.get("Entrada CD"), reg.get("Encostou na doca CD"))
-                    df.loc[df_index, 'Tempo de Descarregamento CD'] = calcular_tempo(reg.get("Início Descarregamento CD"), reg.get("Fim Descarregamento CD"))
-                    df.loc[df_index, 'Tempo Total CD'] = calcular_tempo(reg.get("Entrada CD"), reg.get("Saída CD"))
+                # Recalcula todos os campos de tempo
+                reg = df_para_salvar.loc[df_index]
+                df_para_salvar.loc[df_index, 'Tempo Espera Doca'] = calcular_tempo(reg.get("Entrada na Fábrica"), reg.get("Encostou na doca Fábrica"))
+                df_para_salvar.loc[df_index, 'Tempo de Carregamento'] = calcular_tempo(reg.get("Início carregamento"), reg.get("Fim carregamento"))
+                df_para_salvar.loc[df_index, 'Tempo Total'] = calcular_tempo(reg.get("Entrada na Fábrica"), reg.get("Saída do pátio"))
+                df_para_salvar.loc[df_index, 'Tempo Percurso Para CD'] = calcular_tempo(reg.get("Saída do pátio"), reg.get("Entrada CD"))
+                df_para_salvar.loc[df_index, 'Tempo Espera Doca CD'] = calcular_tempo(reg.get("Entrada CD"), reg.get("Encostou na doca CD"))
+                df_para_salvar.loc[df_index, 'Tempo de Descarregamento CD'] = calcular_tempo(reg.get("Início Descarregamento CD"), reg.get("Fim Descarregamento CD"))
+                df_para_salvar.loc[df_index, 'Tempo Total CD'] = calcular_tempo(reg.get("Entrada CD"), reg.get("Saída CD"))
 
-                    if salvar_dataframe(df):
-                        st.success("✅ Registro atualizado com sucesso!")
-                        # Limpa as chaves de edição para o próximo registro
-                        for key in list(st.session_state.keys()):
-                            if key.startswith("edit_"): del st.session_state[key]
-                        st.rerun()
+                if salvar_dataframe(df_para_salvar):
+                    st.success("✅ Registro atualizado com sucesso!")
+                    on_selection_change() # Limpa o estado
+                    st.session_state.selectbox_edicao = "Selecione..." # Reseta o selectbox
+                # Não precisa de rerun, o Streamlit já faz isso após o callback
+
+        # --- Renderização dos Widgets ---
+        for campo in campos_tempo:
+            valor_original = df.loc[df_index, campo]
+            
+            if valor_original and str(valor_original).strip() != '':
+                st.text_input(f"✅ {campo}", value=valor_original, disabled=True, key=f"disp_{campo}")
+            else:
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.text_input(f"📋 {campo}", key=f"edit_{campo}")
+                with col2:
+                    st.button("⏰ Agora", key=f"btn_now_{campo}", on_click=registrar_agora, args=(campo,))
+        
+        st.markdown("---")
+        st.button("💾 SALVAR ALTERAÇÕES", on_click=salvar_alteracoes, use_container_width=True, type="primary")
+
 
 # =============================================================================
 # OUTRAS PÁGINAS (CÓDIGO COMPLETO RESTAURADO)
@@ -211,7 +215,7 @@ elif st.session_state.pagina_atual in ["Em Operação", "Finalizadas"]:
         if subset_df.empty:
             st.info("Nenhum registro em operação no momento.")
         else:
-            # Adapte esta parte para o seu layout de cards se preferir
+            # Cole aqui o seu layout de cards original para esta tela
             st.dataframe(subset_df) 
             
     elif st.session_state.pagina_atual == "Finalizadas":
@@ -220,5 +224,5 @@ elif st.session_state.pagina_atual in ["Em Operação", "Finalizadas"]:
         if subset_df.empty:
             st.info("Nenhum registro finalizado ainda.")
         else:
-            # Adapte esta parte para o seu layout de cards se preferir
+            # Cole aqui o seu layout de cards original para esta tela
             st.dataframe(subset_df)
