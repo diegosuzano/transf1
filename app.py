@@ -124,10 +124,8 @@ if st.session_state.pagina_atual == "Tela Inicial":
     with col1:
         if st.button("🆕 NOVO REGISTRO", use_container_width=True):
             st.session_state.pagina_atual = "Novo"
-            # Limpa qualquer estado antigo de um novo registro
             for key in list(st.session_state.keys()):
-                if key.startswith("novo_"):
-                    del st.session_state[key]
+                if key.startswith("novo_"): del st.session_state[key]
             st.rerun()
         if st.button("📊 EM OPERAÇÃO", use_container_width=True):
             st.session_state.pagina_atual = "Em Operação"
@@ -142,71 +140,57 @@ if st.session_state.pagina_atual == "Tela Inicial":
     # ... (código do dashboard da tela inicial) ...
 
 # =============================================================================
-# PÁGINA DE NOVO REGISTRO (LÓGICA CORRIGIDA)
+# PÁGINA DE NOVO REGISTRO (LÓGICA FINAL E CORRIGIDA)
 # =============================================================================
 elif st.session_state.pagina_atual == "Novo":
     botao_voltar()
     st.markdown("### 🆕 Novo Registro de Transferência")
 
-    # Etapa 1: Coletar informações básicas
-    if 'novo_registro_iniciado' not in st.session_state:
-        with st.form("info_basicas_form"):
-            st.text_input("🚛 Placa do Caminhão", key="novo_placa")
-            st.text_input("👤 Nome do Conferente", key="novo_conferente")
-            submitted = st.form_submit_button("▶️ Iniciar Registro")
-            if submitted:
-                if not st.session_state.novo_placa or not st.session_state.novo_conferente:
-                    st.error("Placa e Conferente são obrigatórios.")
-                else:
-                    st.session_state.novo_registro_iniciado = True
-                    st.rerun()
+    # --- Callbacks para ações ---
+    def registrar_agora(campo):
+        st.session_state[f"novo_{campo}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
+
+    def salvar_novo_registro():
+        if not st.session_state.get("novo_placa") or not st.session_state.get("novo_conferente"):
+            st.error("Placa e Conferente são obrigatórios para salvar.")
+            return
+
+        with st.spinner("Salvando..."):
+            df = carregar_dataframe()
+            
+            nova_linha_dict = {
+                "Data": datetime.now(FUSO_HORARIO).date(),
+                "Placa do caminhão": st.session_state.novo_placa,
+                "Nome do conferente": st.session_state.novo_conferente
+            }
+            for campo in campos_tempo:
+                nova_linha_dict[campo] = st.session_state.get(f"novo_{campo}", '')
+
+            # Adicione aqui os cálculos de tempo para a nova linha
+            # ...
+
+            nova_linha_df = pd.DataFrame([nova_linha_dict])
+            df_final = pd.concat([df, nova_linha_df], ignore_index=True)
+
+            if salvar_dataframe(df_final):
+                st.success("✅ Novo registro salvo com sucesso!")
+                for key in list(st.session_state.keys()):
+                    if key.startswith("novo_"): del st.session_state[key]
+                st.rerun()
+
+    # --- Renderização dos Widgets ---
+    st.text_input("🚛 Placa do Caminhão", key="novo_placa")
+    st.text_input("👤 Nome do Conferente", key="novo_conferente")
+    st.markdown("---")
+
+    for campo in campos_tempo:
+        if st.session_state.get(f"novo_{campo}"):
+            st.success(f"✅ {campo}: {st.session_state[f'novo_{campo}']}")
+        else:
+            st.button(f"Registrar {campo}", key=f"btn_novo_{campo}", on_click=registrar_agora, args=(campo,))
     
-    # Etapa 2: Registrar os tempos
-    else:
-        st.info(f"Registrando para a Placa: **{st.session_state.novo_placa}** | Conferente: **{st.session_state.novo_conferente}**")
-        st.markdown("---")
-        
-        # Callback para os botões de registro de tempo
-        def registrar_agora(campo):
-            st.session_state[f"novo_{campo}"] = datetime.now(FUSO_HORARIO).strftime("%Y-%m-%d %H:%M:%S")
-
-        # Renderiza os botões e os tempos já registrados
-        for campo in campos_tempo:
-            if st.session_state.get(f"novo_{campo}"):
-                st.success(f"✅ {campo}: {st.session_state[f'novo_{campo}']}")
-            else:
-                st.button(f"Registrar {campo}", key=f"btn_novo_{campo}", on_click=registrar_agora, args=(campo,))
-        
-        st.markdown("---")
-        
-        # Callback para o botão de salvar
-        def salvar_novo_registro():
-            with st.spinner("Salvando..."):
-                df = carregar_dataframe()
-                
-                nova_linha_dict = {
-                    "Data": datetime.now(FUSO_HORARIO).date(),
-                    "Placa do caminhão": st.session_state.novo_placa,
-                    "Nome do conferente": st.session_state.novo_conferente
-                }
-                for campo in campos_tempo:
-                    nova_linha_dict[campo] = st.session_state.get(f"novo_{campo}", '')
-
-                # Adicione aqui os cálculos de tempo para a nova linha
-                # ...
-
-                nova_linha_df = pd.DataFrame([nova_linha_dict])
-                df_final = pd.concat([df, nova_linha_df], ignore_index=True)
-
-                if salvar_dataframe(df_final):
-                    st.success("✅ Novo registro salvo com sucesso!")
-                    # Limpa tudo para o próximo
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("novo_"):
-                            del st.session_state[key]
-                # O rerun já acontece por causa do callback
-
-        st.button("💾 SALVAR REGISTRO COMPLETO", on_click=salvar_novo_registro, use_container_width=True, type="primary")
+    st.markdown("---")
+    st.button("💾 SALVAR NOVO REGISTRO", on_click=salvar_novo_registro, use_container_width=True, type="primary")
 
 
 # =============================================================================
